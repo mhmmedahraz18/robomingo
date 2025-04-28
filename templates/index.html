@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>RoboMigo</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
+
+</head>
+
+<body>
+
+    <div class="chat-container-wrapper">
+
+        <div class="chat-container">
+
+            <div class="chat-header">
+
+                <span>RoboMigo</span>
+
+                <div class="controls">
+
+                    <select id="language-select">
+
+                        <option value="en">English</option>
+
+                        <option value="hi">Hindi</option>
+
+                        <option value="ml">Malayalam</option>
+
+                        <option value="kn">Kannada</option>
+
+                        <option value="ta">Tamil</option>
+
+                        <option value="te">Telugu</option>
+
+                    </select>
+
+                    <button onclick="toggleNavigation()">🧭 Nav</button>
+
+                </div>
+
+            </div>
+
+
+            <div class="chat-box" id="chat-box">
+
+                <div class='status-message' id='initial-status'></div>
+
+            </div>
+
+
+            <div class="start-chat-area" id="start-chat-area">
+
+                <button id="start-chat-btn" class="start-chat-button" onclick="requestStartChat()" disabled>Start Chat</button>
+
+            </div>
+
+
+            <div class="input-area hidden" id="input-area">
+
+                <div id="loading-indicator" class="loading-spinner" style="display: none;"></div>
+
+                <input type="text" id="user-input" placeholder="Type your message..." onkeypress="handleKeyPress(event)" disabled>
+
+                <button id="mic-btn" class="mic-button" onclick="startVoiceInput()" disabled>🎤</button>
+
+                <button id="send-btn" class="send-button" onclick="sendMessage()" disabled>➤</button>
+
+            </div>
+
+        </div>
+
+
+        <div class="navigation-container" id="navigation-container">
+
+            <h3>Navigation</h3>
+
+            <label for="location-select">Select Destination:</label>
+
+            <select id="location-select">
+
+                <option value="principal_office">Principal's Office</option>
+
+                <option value="canteen">Canteen</option>
+
+                <option value="computer centre">computer centre</option>
+
+                <option value="AGM office">AGM office</option>
+
+                <option value="admission office">admission office</option>
+
+                <option value="administrative office">administrative office</option>
+
+                <option value="reception and accounts">reception and accounts</option>
+
+                <option value="engineering block">engineering block</option>
+
+                <option value="washroom">washroom</option>
+
+                <option value="vice principal office">vice principal office</option>
+
+                <option value="hod cabin">hod cabin</option>
+
+                <option value="novel lab">novel lab</option>
+
+                <option value="nt lab">nt lab</option>
+
+                <option value="web lab">web lab</option>
+
+            </select>
+
+            <button onclick="loadNavigationVideo()">Show Directions</button>
+
+            <div class="video-container" id="video-container">
+
+                <p>Select a destination to see directions.</p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <script>
+        const socket = io(); // Connects to same host/port by default
+
+        // --- DOM Elements ---
+        let chatBox;
+        let initialStatus; // Get the initial status div
+        let startChatArea;
+        let startChatBtn;
+        let inputArea;
+        let userInput;
+        let sendBtn;
+        let micBtn;
+        let languageSelect;
+        let loadingIndicator;
+        let navigationContainer;
+        let videoContainer;
+        let locationSelect;
+
+        let conversationActive = false; // Track if chat is active
+
+        // --- Utility Functions ---
+        function addMessage(text, type = 'bot') {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', type === 'user' ? 'user-message' : 'bot-message');
+            messageDiv.textContent = text; // Use textContent for safety
+            chatBox.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function addStatusMessage(text, showSpinner = false) {
+            const statusDiv = document.createElement('div');
+            statusDiv.classList.add('status-message');
+            statusDiv.textContent = text;
+            if (showSpinner) {
+                const spinner = document.createElement('div');
+                spinner.className = 'loading-spinner';
+                statusDiv.appendChild(spinner);
+            }
+            chatBox.appendChild(statusDiv);
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function setInputActive(isActive) {
+            userInput.disabled = !isActive;
+            sendBtn.disabled = !isActive;
+            micBtn.disabled = !isActive;
+            loadingIndicator.style.display = isActive ? 'none' : 'inline-block'; // Show loader when inactive
+        }
+
+        // --- SocketIO Event Handlers ---
+        function setupSocketEventListeners() {
+            socket.on('connect', () => {
+                console.log('Frontend (Socket): Connected to WebSocket');
+                // Potentially request initial state here if needed
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Frontend (Socket): Disconnected from WebSocket');
+                addStatusMessage('Connection lost. Please refresh.');
+                setChatState(false); // Reset chat state
+                startChatBtn.disabled = true;
+                conversationActive = false;
+            });
+
+            socket.on('person_detected', (data) => {
+                console.log('Frontend (person_detected): *** EVENT RECEIVED ***'); // Added emphasis
+                console.log('Frontend (person_detected): Message:', data.message);
+
+                chatBox.innerHTML = ''; // Clear previous chat messages
+                console.log('Frontend (person_detected): Chat box cleared.');
+
+                addStatusMessage(data.message || 'New person detected! Ready to chat.');
+                console.log('Frontend (person_detected): New status message added:', data.message);
+
+                playVoiceOutput(data.message || 'New person detected! Ready to chat.');
+                console.log('Frontend (person_detected): Voice output initiated.');
+
+                console.log('Frontend (person_detected): startChatBtn element:', startChatBtn);
+                if (startChatBtn) {
+                    startChatBtn.disabled = false; // Enable start button
+                    console.log('Frontend (person_detected): startChatBtn.disabled set to false.');
+                } else {
+                    console.error("Frontend (person_detected): Error: startChatBtn element not found!");
+                }
+
+                conversationActive = false;
+                console.log('Frontend (person_detected): conversationActive set to false.');
+                console.log('Frontend (person_detected): Handler finished.');
+            });
+
+            socket.on('person_left', (data) => {
+                console.log('Frontend (person_left): ' + data.message);
+                addStatusMessage(data.message || 'User left. Session ended.');
+                playVoiceOutput(data.message || 'User left. Session ended.');
+                startChatBtn.disabled = true; // Disable start button
+                setChatState(false); // Hide input area
+                conversationActive = false;
+            });
+
+            socket.on('start_conversation', (data) => {
+                console.log('Frontend (start_conversation): ' + data.message);
+                startChatArea.style.display = 'none';
+                inputArea.classList.remove('hidden');
+                addStatusMessage(data.message || 'Conversation started. How can I help?');
+                playVoiceOutput(data.message || 'Conversation started. How can I help?');
+                setChatState(true); // Enable input fields
+                userInput.focus(); // Focus input field
+                conversationActive = true;
+            });
+        }
+
+        // --- UI Interaction Functions ---
+        function setChatState(active) {
+            if (active) {
+                startChatArea.style.display = 'none';
+                inputArea.classList.remove('hidden');
+                setInputActive(true);
+            } else {
+                startChatArea.style.display = 'flex'; // Show start button area
+                inputArea.classList.add('hidden');   // Hide input area
+                setInputActive(false);
+                startChatBtn.disabled = !socket.connected; // Disable if not connected initially
+            }
+        }
+
+        function requestStartChat() {
+            if (!socket.connected) {
+                addStatusMessage("Not connected to server.", false);
+                return;
+            }
+            console.log("Frontend: Requesting to start chat...");
+            socket.emit('start_chat_request');
+            startChatBtn.disabled = true; // Disable button after clicking
+            addStatusMessage("Waiting for confirmation...", true);
+        }
+
+        async function sendMessage() {
+            let userMessage = userInput.value.trim();
+            if (userMessage === "" || !conversationActive) return;
+
+            addMessage(userMessage, 'user');
+            userInput.value = ""; // Clear input immediately
+            setInputActive(false); // Disable input while processing
+
+            try {
+                const response = await fetch("/get_response", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: userMessage, language: languageSelect.value })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                addMessage(data.response, 'bot');
+                playVoiceOutput(data.response);
+            } catch (error) {
+                console.error("Frontend: Error fetching response:", error);
+                addMessage("Sorry, I couldn't get a response. Please try again.", 'bot');
+                // Optionally play an error sound
+            } finally {
+                setInputActive(true); // Re-enable input
+                userInput.focus();
+            }
+        }
+
+        async function startVoiceInput() {
+            if (!conversationActive) return;
+
+            setInputActive(false); // Disable input
+            micBtn.classList.add('listening'); // Visual feedback
+            addStatusMessage("Listening...", true);
+
+            try {
+                const response = await fetch("/voice_input", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ language: languageSelect.value })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+
+                // Remove "Listening..." message
+                const statusMessages = chatBox.querySelectorAll('.status-message');
+                if (statusMessages.length > 0) {
+                    statusMessages[statusMessages.length - 1].remove();
+                }
+
+                if (data.message && !data.message.toLowerCase().includes("didn't catch that")) {
+                    userInput.value = data.message;
+                    sendMessage(); // Send the recognized text
+                } else {
+                    addMessage(data.message || "Sorry, I couldn't understand.", 'bot');
+                    playVoiceOutput(data.message || "Sorry, I couldn't understand.");
+                    setInputActive(true); // Re-enable if nothing was understood
+                }
+            } catch (error) {
+                console.error("Frontend: Error during voice input:", error);
+                addMessage("There was an issue with voice input. Please try again.", 'bot');
+                setInputActive(true); // Re-enable on error
+            } finally {
+                micBtn.classList.remove('listening');
+                // setInputActive(true) is handled within sendMessage or the catch block now
+            }
+        }
+
+        async function playVoiceOutput(text) {
+            if (!text) return;
+            try {
+                const response = await fetch("/voice_output", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: text, language: languageSelect.value })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const blob = await response.blob();
+                const audio = new Audio(URL.createObjectURL(blob));
+                audio.play().catch(e => console.error("Frontend: Audio play failed:", e)); // Catch play errors
+            } catch (error) {
+                console.error("Frontend: Error fetching/playing voice output:", error);
+                // Optionally inform user that audio failed
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === "Enter") {
+                sendMessage();
+            }
+        }
+
+        function toggleNavigation() {
+            navigationContainer.classList.toggle('visible');
+            // Adjust main chat container width if needed (more complex layout)
+        }
+
+        function loadNavigationVideo() {
+            let location = locationSelect.value;
+            let videoMap = {
+                "principal_office": "/static/videos/principal_office.mp4",
+                "canteen": "/static/videos/canteen.mp4",
+                "computer centre": "/static/videos/computer_centre.mp4",
+                "AGM office": "/static/videos/agm_office.mp4",
+                "admission office": "/static/videos/admission_office.mp4",
+                "administrative office": "/static/videos/administrative_office.mp4",
+                "reception and accounts": "/static/videos/reception_accounts.mp4",
+                "engineering block": "/static/videos/engineering_block.mp4",
+                "washroom": "/static/videos/washroom.mp4",
+                "vice principal office": "/static/videos/vice_principal_office.mp4",
+                "hod cabin": "/static/videos/hod_cabin.mp4",
+                "novel lab": "/static/videos/novel_lab.mp4",
+                "nt lab": "/static/videos/nt_lab.mp4",
+                "web lab": "/static/videos/web_lab.mp4",
+            };
+
+            videoContainer.innerHTML = ''; // Clear previous video or message
+            const videoSrc = videoMap[location];
+
+            if (!videoSrc) {
+                videoContainer.innerHTML = `<p class="error-message">Video directions map is missing for this location.</p>`;
+                return;
+            }
+
+            const videoElem = document.createElement('video');
+            videoElem.controls = true;
+            videoElem.autoplay = true; // Autoplay might be blocked by browser policies
+            videoElem.loop = false; // Usually directions aren't looped
+            videoElem.muted = false; // Ensure sound can play if video has it
+
+            const sourceElem = document.createElement('source');
+            sourceElem.src = videoSrc;
+            sourceElem.type = 'video/mp4';
+            videoElem.appendChild(sourceElem);
+
+            videoElem.onerror = () => {
+                console.error(`Error loading video: ${videoSrc}`);
+                videoContainer.innerHTML = `<p class="error-message">Video directions unavailable or file not found for ${location.replace(/_/g, ' ')}.</p>`;
+            };
+            videoElem.oncanplay = () => {
+                videoElem.play().catch(e => {
+                    console.warn("Autoplay prevented:", e);
+                    // Optionally show a play button if autoplay fails
+                    videoContainer.innerHTML = `<p>Autoplay blocked. Press play on video controls.</p>`;
+                    videoContainer.appendChild(videoElem); // Still add the video element
+                });
+            };
+
+            videoContainer.appendChild(videoElem);
+        }
+
+        // --- Initial Setup ---
+        window.onload = () => {
+            console.log('Frontend: Window loaded.');
+
+            // Initialize DOM element variables here, inside window.onload
+            chatBox = document.getElementById('chat-box');
+            initialStatus = document.getElementById('initial-status');
+            startChatArea = document.getElementById('start-chat-area');
+            startChatBtn = document.getElementById('start-chat-btn');
+            inputArea = document.getElementById('input-area');
+            userInput = document.getElementById('user-input');
+            sendBtn = document.getElementById('send-btn');
+            micBtn = document.getElementById('mic-btn');
+            languageSelect = document.getElementById('language-select');
+            loadingIndicator = document.getElementById('loading-indicator');
+            navigationContainer = document.getElementById('navigation-container');
+            videoContainer = document.getElementById('video-container');
+            locationSelect = document.getElementById('location-select');
+
+            initialStatus.textContent = "Waiting for user..."; // Set initial message
+            startChatBtn.disabled = true; // Ensure it's disabled until person detected
+            setChatState(false); // Start with input hidden, start button visible
+            console.log('Frontend: Initial state set.');
+
+            setupSocketEventListeners(); // Set up SocketIO listeners after DOM is ready
+        };
+    </script>
+
+</body>
+
+</html> 
