@@ -359,80 +359,26 @@
                 audio.play().catch(e => console.error("Frontend: Audio play failed:", e)); // Catch play errors
             } catch (error) {
                 console.error("Frontend: Error fetching/playing voice output:", error);
-                // Optionally inform user that audio failed
-            }
-        }
-
-        function handleKeyPress(event) {
-            if (event.key === "Enter") {
-                sendMessage();
             }
         }
 
         function toggleNavigation() {
-            navigationContainer.classList.toggle('visible');
-            // Adjust main chat container width if needed (more complex layout)
+            navigationContainer.style.display = (navigationContainer.style.display === 'none' ? 'block' : 'none');
         }
 
+        // Video Logic for Direction Display
         function loadNavigationVideo() {
-            let location = locationSelect.value;
-            let videoMap = {
-                "principal_office": "/static/videos/principal_office.mp4",
-                "canteen": "/static/videos/canteen.mp4",
-                "computer centre": "/static/videos/computer_centre.mp4",
-                "AGM office": "/static/videos/agm_office.mp4",
-                "admission office": "/static/videos/admission_office.mp4",
-                "administrative office": "/static/videos/administrative_office.mp4",
-                "reception and accounts": "/static/videos/reception_accounts.mp4",
-                "engineering block": "/static/videos/engineering_block.mp4",
-                "washroom": "/static/videos/washroom.mp4",
-                "vice principal office": "/static/videos/vice_principal_office.mp4",
-                "hod cabin": "/static/videos/hod_cabin.mp4",
-                "novel lab": "/static/videos/novel_lab.mp4",
-                "nt lab": "/static/videos/nt_lab.mp4",
-                "web lab": "/static/videos/web_lab.mp4",
-            };
-
-            videoContainer.innerHTML = ''; // Clear previous video or message
-            const videoSrc = videoMap[location];
-
-            if (!videoSrc) {
-                videoContainer.innerHTML = `<p class="error-message">Video directions map is missing for this location.</p>`;
-                return;
-            }
-
-            const videoElem = document.createElement('video');
-            videoElem.controls = true;
-            videoElem.autoplay = true; // Autoplay might be blocked by browser policies
-            videoElem.loop = false; // Usually directions aren't looped
-            videoElem.muted = false; // Ensure sound can play if video has it
-
-            const sourceElem = document.createElement('source');
-            sourceElem.src = videoSrc;
-            sourceElem.type = 'video/mp4';
-            videoElem.appendChild(sourceElem);
-
-            videoElem.onerror = () => {
-                console.error(`Error loading video: ${videoSrc}`);
-                videoContainer.innerHTML = `<p class="error-message">Video directions unavailable or file not found for ${location.replace(/_/g, ' ')}.</p>`;
-            };
-            videoElem.oncanplay = () => {
-                videoElem.play().catch(e => {
-                    console.warn("Autoplay prevented:", e);
-                    // Optionally show a play button if autoplay fails
-                    videoContainer.innerHTML = `<p>Autoplay blocked. Press play on video controls.</p>`;
-                    videoContainer.appendChild(videoElem); // Still add the video element
-                });
-            };
-
-            videoContainer.appendChild(videoElem);
+            let selectedLocation = locationSelect.value;
+            let videoElement = document.createElement('video');
+            videoElement.src = `/static/videos/${selectedLocation}.mp4`;  // Assuming video is stored in static folder
+            videoElement.controls = true;
+            videoElement.style.width = '100%';
+            videoContainer.innerHTML = '';  // Clear any existing content
+            videoContainer.appendChild(videoElement);
         }
 
-        // --- Initial Setup ---
         window.onload = () => {
-            console.log('Frontend: Window loaded.');
-
-            // Initialize DOM element variables here, inside window.onload
+            // Cache DOM elements
             chatBox = document.getElementById('chat-box');
             initialStatus = document.getElementById('initial-status');
             startChatArea = document.getElementById('start-chat-area');
@@ -447,15 +393,13 @@
             videoContainer = document.getElementById('video-container');
             locationSelect = document.getElementById('location-select');
 
-            initialStatus.textContent = "Waiting for user..."; // Set initial message
-            startChatBtn.disabled = true; // Ensure it's disabled until person detected
-            setChatState(false); // Start with input hidden, start button visible
-            console.log('Frontend: Initial state set.');
-
-            setupSocketEventListeners(); // Set up SocketIO listeners after DOM is ready
+            // Setup initial state
+            setChatState(false);
+            setupSocketEventListeners();
         };
+
     </script>
 
 </body>
 
-</html> 
+</html>
