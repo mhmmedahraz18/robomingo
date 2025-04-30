@@ -39,7 +39,7 @@ translator = Translator()
 # This is done for simplicity based on your request, but use environment variables for production.
 # Replace "YOUR_ACTUAL_GEMINI_KEY_HERE_PUT_IT_HERE" with your key if the hardcoded one below doesn't work.
 # Your provided key: AIzaSyBVRHqvCCHcj5QC77A_511-B_JMsxzxD_U
-GEMINI_API_KEY = "AIzaSyBVRHqvCCHcj5QC77A_511-B_JMsxzxD_U" # <-- Your key is now hardcoded here directly
+GEMINI_API_KEY = "" # <-- Your key is now hardcoded here directly
 
 # We still define a placeholder key, but only for the *check* to see if the key was replaced/set
 # This is NO LONGER the fallback value from os.environ.get
